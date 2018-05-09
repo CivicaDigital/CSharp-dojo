@@ -548,3 +548,109 @@ Here we create a number of high priority threads, enough to saturate the process
     Thread ID: 7, Priority: Normal         COMPLETED.
 
 Notice as well that the lower priority thread is actually stopped mid-execution to make room for the higher priority threads.  When you run this you probably notice that the performance of the system degrades for the ten-ish seconds it's running for.
+
+## The Cost of Threads
+
+Aside from the problems demonstrated above and the need for you as the developer to optimise for an unknown number of CPUs you will also have to conciser the other substantial overheads associated with creating and managing threads.
+
+### The Upfront Cost
+
+Each thread created has is initialized with some data structures.  A kernel object, a thread environment block, user stack and kernel stack and DLL thread-attach and thread detach notifications.
+
+The kernel object itself it used by the OS kernel to reference the thread.
+
+The stacks contain the processing information for user and kernel mode.  Kernel mode and user mode can't pass by reference, so any state that needs to be passed between them needs to be copied.
+
+The DLL thread attach and detach list the `DllMain` method for every unmanaged DLL loaded.  With some exceptions, it will call this method when it loads and unloads with different flags (i.e. `DLL_THREAD_ATTACH` and `DLL_THREAD_DETACH`);
+
+### The Ongoing Costs
+
+The hardware processor contains many optimisations, one of which is the cache.  When a thread is processing the cache hugely speeds up data access for recently accessed data items.  Swapping unrelated threads in and out of the processor makes the cache useless and slower then if it weren't there at all.
+
+In order to solve this problem, each thread stores it's cache in the kernel object and has to reload the cache in the processor each time it is granted processor time.
+
+## Possible Solutions
+
+I use the term _solution_ rather flippantly here.  There are many best practices that help us avoid the problems described above to some extent or another, but the have drawbacks as well.  That being acknowledged, for most scenarios these are better options than the manual thread manipulation we've looked at so far.
+
+### Thread Pools
+
+We can avoid the overhead of thread creation by reusing threads that have already been created.  The `ThreadPool` class handles this for us.
+
+``` csharp
+using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.Linq;
+using System.Threading;
+using static System.Console;
+
+static class ThreadPoolClass
+{
+    private const int THREAD_COUNT = 100;
+    private static readonly bool[] COMPLETION = new bool[THREAD_COUNT];
+    private static readonly ConcurrentStack<int> USAGE = new ConcurrentStack<int>();
+
+    private static void Main()
+    {
+        for (var i = 0; i < THREAD_COUNT; i++)
+        {
+            WriteLine($"Queueing {i}.");
+            ThreadPool.QueueUserWorkItem(Counter, i);
+        }
+
+        while (!COMPLETION.All(x => x))
+        {
+            Thread.Sleep(0);
+        }
+
+        var threadUsages = new SortedDictionary<int, int>();
+
+        foreach (var usage in USAGE)
+        {
+            if (threadUsages.ContainsKey(usage))
+            {
+                threadUsages[usage] = threadUsages[usage] + 1;
+            }
+            else
+            {
+                threadUsages.Add(usage, 1);
+            }
+        }
+
+        WriteLine($"Thread reuse:");
+        foreach (var usage in threadUsages)
+        {
+            WriteLine($"Thread {usage.Key} used {usage.Value} times.");
+        }
+    }
+
+    private static void Counter(object state)
+    {
+        var index = (int)state;
+        USAGE.Push(Thread.CurrentThread.ManagedThreadId);
+
+        for (var i = 0; i < 10; i++)
+        {
+            WriteLine($"Thread ID: {Thread.CurrentThread.ManagedThreadId}: {i}");
+            Thread.Sleep(1);
+        }
+        COMPLETION[index] = true;
+    }
+}
+```
+
+When you run this, you'll see something like the following at the end of the output:
+
+    Thread reuse:
+    Thread 3 used 22 times.
+    Thread 4 used 22 times.
+    Thread 5 used 23 times.
+    Thread 6 used 22 times.
+    Thread 7 used 11 times.
+
+This might seem like the silver bullet, however we lose a lot of benefits from the manual creation.
+
+1. No way to chose a thread's priority.
+1. No way to wait for a thread to finish.
+1. The thread is in an unknown state.  This means that there could be unexpected values in the TLS, maybe even secret stuff from whatever it was doing last.
+1. Thread pool threads are always background threads.
