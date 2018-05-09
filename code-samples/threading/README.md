@@ -248,3 +248,88 @@ When you run this you'll see that the execution of the `Main()` pauses at the `J
     3: Finished!
     1: All done.
 
+## Exceptions
+
+It's important to note that though background threads don't contribute to an application's lifetime when things are going well; they will still cause the application to terminate when an unhandled exception occurs.
+
+``` csharp
+using System;
+using System.Threading;
+using static System.Console;
+
+internal static class ExceptionHandling
+{
+    private static void Main()
+    {
+
+        var thread = new Thread(ThrowsDummyException);
+        thread.Start();
+        while (true)
+        {
+            WriteLine($"Thread: {Thread.CurrentThread.ManagedThreadId} is working hard...");
+            Thread.Sleep(10);
+        }
+    }
+
+    private static void ThrowsDummyException()
+    {
+        var timeSpan = TimeSpan.FromMilliseconds(100);
+
+        WriteLine($"Thread: {Thread.CurrentThread.ManagedThreadId}: Waiting {timeSpan.TotalSeconds} seconds to throw.");
+        Thread.Sleep(timeSpan);
+        throw new Exception("BOOM!");
+    }
+}
+```
+
+You might be tempted to solve this problem by adding a `try-catch` in the `Main` method like this:
+
+``` csharp
+using System;
+using System.Threading;
+using static System.Console;
+
+internal static class ExceptionHandling
+{
+    private static void Main()
+    {
+        try
+        {
+            var thread = new Thread(ThrowsDummyException);
+            thread.Start();
+            while (true)
+            {
+                WriteLine($"Thread: {Thread.CurrentThread.ManagedThreadId} is working hard...");
+                Thread.Sleep(10);
+            }
+        }
+        catch (System.Exception)
+        {
+            System.Console.WriteLine($"I caught the exception.");
+        }
+
+    }
+
+    private static void ThrowsDummyException()
+    {
+        var timeSpan = TimeSpan.FromMilliseconds(100);
+
+        WriteLine($"Thread: {Thread.CurrentThread.ManagedThreadId}: Waiting {timeSpan.TotalSeconds} seconds to throw.");
+        Thread.Sleep(timeSpan);
+        throw new Exception("BOOM!");
+    }
+}
+```
+
+This doesn't actually catch the exception though, it can't because `thread` is running asynchronously to the `Main` method.  Exception handling needs to be done in the thread that's throwing the exception.  In the example above, a `try-catch` would be used in the `ThrowsDummyException` method.
+
+## Aborting a Thread
+
+Once a thread is started another thread can't just stop it. A thread is unloaded when it either finishes, the app domain it's in is unloaded or an exception is thrown in the thread.
+
+This third option is common and the CLR has a special exception class for doing this.  Calling `Abort` on a thread tells the CLR to raise a `ThreadAbortedException` in that thread.
+
+1. The `ThreadAbortedException` is sealed.
+1. The `ThreadAbortedException` has no public constructor.
+1. The CLR will not terminate an application if a `ThreadAbortedException` is raised.
+1. You can catch a `ThreadAbortedException` however, after handling it the `ThreadAbortedException` will continue to bubble up.
