@@ -332,4 +332,219 @@ This third option is common and the CLR has a special exception class for doing 
 1. The `ThreadAbortedException` is sealed.
 1. The `ThreadAbortedException` has no public constructor.
 1. The CLR will not terminate an application if a `ThreadAbortedException` is raised.
-1. You can catch a `ThreadAbortedException` however, after handling it the `ThreadAbortedException` will continue to bubble up.
+1. You can catch a `ThreadAbortedException` **however**, after handling it the `ThreadAbortedException` will continue to bubble up **unless** `ResetAbort` is called.
+
+The last point here means that whilst you can try to abort a thread, you can't guarantee when or if is will actually happen.
+
+``` csharp
+using static System.Console;
+using System.Threading;
+
+static class AbortingAThread
+{
+    private static void Main()
+    {
+        var thread = new Thread(Counter);
+        thread.Start();
+        Thread.Sleep(50);
+        thread.Abort("I'm aborting you.");
+    }
+    private static void Counter()
+    {
+        try
+        {
+            var i = 0;
+            while(true)
+            {
+                WriteLine($"{Thread.CurrentThread.ManagedThreadId}: {i}");
+                Thread.Sleep(10);
+            }
+        }
+        catch(ThreadAbortException e)
+        {
+            WriteLine($"Thread {Thread.CurrentThread.ManagedThreadId}:  I caught the `ThreadAbortedException` exception: {e.Message};");
+            WriteLine($"The object data is: {e.ExceptionState}");
+        }
+    }
+}
+```
+
+Whilst we can't catch the exception to stop it from being re-thrown, we can cancel it completely by calling `ResetAbort()`.
+
+``` csharp
+using static System.Console;
+using System.Threading;
+
+static class ResettingAnAbortingThread
+{
+    private static void Main()
+    {
+        var thread = new Thread(Counter);
+        thread.Start();
+        Thread.Sleep(50);
+        thread.Abort("I'm aborting you.");
+    }
+    private static void Counter()
+    {
+        try
+        {
+            var i = 0;
+            while(true)
+            {
+                WriteLine($"{Thread.CurrentThread.ManagedThreadId}: {i}");
+                Thread.Sleep(10);
+            }
+        }
+        catch(ThreadAbortException e)
+        {
+            WriteLine($"Thread {Thread.CurrentThread.ManagedThreadId}:  I caught the `ThreadAbortedException` exception: {e.Message};");
+            WriteLine($"The object data is: {e.ExceptionState}");
+            Thread.ResetAbort();
+        }
+
+        WriteLine("Wee!  I wasn't aborted!");
+    }
+}
+```
+
+## Parameterized Threads
+
+The `Thread` constructor is overloaded to accept either a `ThreadStart` delegate or a `ParameterizedThreadStart`.  The `ParameterizedThreadStart` delegate accepts a single `object` as an argument.
+
+``` csharp
+using System.Threading;
+using static System.Console;
+
+static class ParameterizedThreads
+{
+    private static void Main()
+    {
+        var thread = new Thread(CountInterval);
+        thread.Start("Hello World!");
+        thread.Join();
+    }
+
+    private static void CountInterval(object message)
+    {
+        WriteLine($"Thread {Thread.CurrentThread.ManagedThreadId}: Message: {(string) message}.");
+    }
+}
+```
+
+## Thread Priority Levels
+
+Windows uses a threads priority (relative to other threads competing for processor time) to decide what thread gets processor time.  It will share the processor time between the highest priority threads that are ready at the exclusion of all lower priority threads.  This means that you must exercise care in setting a thread's priority - in fact, there are some priorities that can only be set by a user with kernel-mode permissions.
+
+> The absolute priority is a number from 0 to 31 (inclusive).  0 is the lowest priority and 31 is the highest.  0 however is reserved for the sole use of the _zero page thread_ that is created by the OS.
+
+There are two values that affect the calculation of the absolute priority of a thread:
+
+1. The thread's `ThreadPriority` value.
+1. The process's priority class.
+
+They are calculated as:
+
+![Thread priorities](https://i.imgur.com/15Z4Pr9.png)
+
+What this means is that you could create a high priority, long running thread which would block other threads from executing.  This is called _thread starvation_.
+
+We can see this happening with the following code:
+
+``` csharp
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using static System.Console;
+
+static class ThreadStarvation
+{
+    private static void Main()
+    {
+        var processorCount = Environment.ProcessorCount;
+
+        WriteLine($"There are {processorCount} processors.");
+        WriteLine($"There can be {processorCount} threads running at the same time.");
+
+        var aboveNormalPriorityThreads = new HashSet<Thread>();
+
+        for (var i = 0; i < processorCount; i ++)
+        {
+            aboveNormalPriorityThreads.Add(new Thread(Counter) { Priority = ThreadPriority.AboveNormal });
+        }
+
+        var normalPriorityThread = new Thread(Counter);
+        normalPriorityThread.Start();
+        WriteLine($"Letting the normal priority thread run for a bit");
+        Thread.Sleep(1000);
+        foreach(var thread in aboveNormalPriorityThreads)
+        {
+            WriteLine($"Starting {thread.ManagedThreadId} with priority {thread.Priority}.");
+            thread.Start();
+        }
+    }
+
+    private static void Counter()
+    {
+        var currentThread = Thread.CurrentThread;
+        var priority = currentThread.Priority;
+        var id = currentThread.ManagedThreadId;
+
+        for (var i = 0; i < 5; i++)
+        {
+            var then = DateTime.Now;
+            var number = then.GetHashCode();
+            while (DateTime.Now < then.AddSeconds(1))
+            {
+                number ^= number.GetHashCode();
+            }
+
+            WriteLine($"Thread ID: {id}, Priority: {priority, -15}{i, 10}{number}");
+        }
+
+        WriteLine($"Thread ID: {id}, Priority: {priority, -15}COMPLETED.");
+    }
+}
+```
+
+Here we create a number of high priority threads, enough to saturate the processors we have.  We also create low priority thread.  Even though the low priority thread is started before the higher priority ones it's starved of resources until one of the higher priority threads complete.
+
+    There are 4 processors.
+    There can be 4 threads running at the same time.
+    Letting the normal priority thread run for a bit
+    Starting 3 with priority AboveNormal.
+    Thread ID: 7, Priority: Normal                  00
+    Starting 4 with priority AboveNormal.
+    Starting 5 with priority AboveNormal.
+    Starting 6 with priority AboveNormal.
+    Thread ID: 4, Priority: AboveNormal             00
+    Thread ID: 3, Priority: AboveNormal             00
+    Thread ID: 5, Priority: AboveNormal             00
+    Thread ID: 6, Priority: AboveNormal             00
+    Thread ID: 4, Priority: AboveNormal             10
+    Thread ID: 5, Priority: AboveNormal             10
+    Thread ID: 3, Priority: AboveNormal             10
+    Thread ID: 6, Priority: AboveNormal             10
+    Thread ID: 3, Priority: AboveNormal             20
+    Thread ID: 4, Priority: AboveNormal             20
+    Thread ID: 5, Priority: AboveNormal             20
+    Thread ID: 6, Priority: AboveNormal             20
+    Thread ID: 3, Priority: AboveNormal             30
+    Thread ID: 5, Priority: AboveNormal             30
+    Thread ID: 4, Priority: AboveNormal             30
+    Thread ID: 6, Priority: AboveNormal             30
+    Thread ID: 3, Priority: AboveNormal             40
+    Thread ID: 3, Priority: AboveNormal    COMPLETED.
+    Thread ID: 5, Priority: AboveNormal             40
+    Thread ID: 5, Priority: AboveNormal    COMPLETED.
+    Thread ID: 7, Priority: Normal                  10
+    Thread ID: 4, Priority: AboveNormal             40
+    Thread ID: 4, Priority: AboveNormal    COMPLETED.
+    Thread ID: 6, Priority: AboveNormal             40
+    Thread ID: 6, Priority: AboveNormal    COMPLETED.
+    Thread ID: 7, Priority: Normal                  20
+    Thread ID: 7, Priority: Normal                  30
+    Thread ID: 7, Priority: Normal                  40
+    Thread ID: 7, Priority: Normal         COMPLETED.
+
+Notice as well that the lower priority thread is actually stopped mid-execution to make room for the higher priority threads.  When you run this you probably notice that the performance of the system degrades for the ten-ish seconds it's running for.
