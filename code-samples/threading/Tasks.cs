@@ -5,8 +5,9 @@ namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
     using System.Linq;
     using System.Threading;
     using static System.Console;
+    using System.Threading.Tasks;
 
-    static class ThreadPoolClass
+    static class TaskClasses
     {
         private const int THREAD_COUNT = 100;
         private static readonly bool[] COMPLETION = new bool[THREAD_COUNT];
@@ -14,16 +15,16 @@ namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
         
         private static void Main()
         {
+            var tasks = new Task[THREAD_COUNT];
+            
             for (var i = 0; i < THREAD_COUNT; i++)
             {
-                WriteLine($"Queueing {i}.");
-                ThreadPool.QueueUserWorkItem(Counter, i);
+                var task = new Task(Counter);
+                tasks[i] = task;
+                task.Start();
             }
-
-            while (!COMPLETION.All(x => x))
-            {
-                Thread.Sleep(0);
-            }    
+            
+            Task.WaitAll(tasks);
 
             var threadUsages = new SortedDictionary<int, int>();
 
@@ -46,9 +47,8 @@ namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
             }    
         }
 
-        private static void Counter(object state)
+        private static void Counter()
         {
-            var index = (int) state;
             USAGE.Push(Thread.CurrentThread.ManagedThreadId);
 
             for (var i = 0; i < 10; i++)
@@ -56,7 +56,6 @@ namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
                 WriteLine($"Thread ID: {Thread.CurrentThread.ManagedThreadId}: {i}");
                 Thread.Sleep(1);
             }
-            COMPLETION[index] = true;
         }
     }
 }

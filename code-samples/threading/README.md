@@ -654,3 +654,9 @@ This might seem like the silver bullet, however we lose a lot of benefits from t
 1. No way to wait for a thread to finish.
 1. The thread is in an unknown state.  This means that there could be unexpected values in the TLS, maybe even secret stuff from whatever it was doing last.
 1. Thread pool threads are always background threads.
+
+## The Task Type
+
+The `Task` and `Task<T>` types address the problem of waiting until completion.  If we change the `ThreadPool` example above to use tasks then we get exactly the same output, but we don't need the `while` loop and boolean array to wait for tasks to all finish.  We can just use the `Task.WaitAll` method.
+
+Internally the task is using the `ThreadPool`, which is why our output is identical.
