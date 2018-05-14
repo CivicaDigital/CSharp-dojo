@@ -1,7 +1,8 @@
+using System;
+
 namespace BanksySan.Workshops.AdvancedCSharp.MemoryManagement
 {
-    using System;
-    using static System.Console;
+    using static Console;
 
     internal class FinalizableType
     {
@@ -11,7 +12,7 @@ namespace BanksySan.Workshops.AdvancedCSharp.MemoryManagement
         }
     }
 
-    static class ViewingFReachable
+    internal static class ViewingFReachable
     {
         private static void Main()
         {

@@ -1,10 +1,12 @@
+using System;
+using System.Diagnostics;
+using System.Threading;
+
 namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 {
-    using System;
-    using System.Diagnostics;
-    using System.Threading;
-    using static System.Console;
-    static class ComparingPerformanceOfThreading
+    using static Console;
+
+    internal static class ComparingPerformanceOfThreading
     {
         private static readonly Random RANDOM = new Random();
 
@@ -14,8 +16,8 @@ namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
             var stopwatchAsynchronous = new Stopwatch();
             const int ITERATIONS = 10;
 
-            int result1 = RANDOM.Next();
-            int result2 = RANDOM.Next();
+            var result1 = RANDOM.Next();
+            var result2 = RANDOM.Next();
             
             stopwatchSynchronous.Start();
             for (var i = 0; i < ITERATIONS; i++)

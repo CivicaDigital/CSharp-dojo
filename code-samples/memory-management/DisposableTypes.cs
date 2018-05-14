@@ -1,9 +1,10 @@
+using System;
+
 namespace BanksySan.Workshops.AdvancedCSharp.MemoryManagement
 {
-    using System;
-    using static System.Console;
+    using static Console;
 
-    class DisposableType : IDisposable
+    internal class DisposableType : IDisposable
     {
         private readonly string _tag;
 
@@ -12,13 +13,14 @@ namespace BanksySan.Workshops.AdvancedCSharp.MemoryManagement
             _tag = tag;
             WriteLine($"Created '{_tag}'.");
         }
+
         public void Dispose()
         {
             WriteLine($"Disposing '{_tag}'.");
         }
     }
 
-    static class DisposableTypes
+    internal static class DisposableTypes
     {
         private static void Main()
         {

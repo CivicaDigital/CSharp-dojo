@@ -1,15 +1,16 @@
+using System;
+
 namespace BanksySan.Workshops.AdvancedCSharp.StringManipulation
 {
-    using System;
-    using static System.Console;
+    using static Console;
 
-    static class StringEqualities
+    internal static class StringEqualities
     {
         private static void Main()
         {
             const string s1 = "Hello World";
             var helloWorldCharArray = s1.ToCharArray();
-            var s2 = new String(helloWorldCharArray);
+            var s2 = new string(helloWorldCharArray);
             var o1 = (object) s1;
 
             WriteLine($"s1 = '{s1}'.");

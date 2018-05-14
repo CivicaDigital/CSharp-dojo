@@ -1,8 +1,9 @@
+using System;
+using System.Threading;
+
 namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 {
-    using System;
-    using System.Threading;
-    using static System.Console;
+    using static Console;
 
     internal static class ExceptionInThread
     {
@@ -18,9 +19,9 @@ namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
                     Thread.Sleep(10);
                 }
             }
-            catch (System.Exception)
+            catch (Exception)
             {
-                System.Console.WriteLine($"I caught the exception.");
+                WriteLine($"I caught the exception.");
             }
 
         }

@@ -1,7 +1,8 @@
+using System;
+
 namespace BanksySan.Workshops.AdvancedCSharp.MemoryManagement
 {
-    using System;
-    using static System.Console;
+    using static Console;
 
     internal static class Program
     {

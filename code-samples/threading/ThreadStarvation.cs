@@ -1,12 +1,12 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+
 namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Threading;
-    using static System.Console;
+    using static Console;
 
-    static class ThreadStarvation
+    internal static class ThreadStarvation
     {
         private static void Main()
         {
@@ -17,10 +17,7 @@ namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 
             var aboveNormalPriorityThreads = new HashSet<Thread>();
             
-            for (var i = 0; i < processorCount; i ++)
-            {
-                aboveNormalPriorityThreads.Add(new Thread(Counter) { Priority = ThreadPriority.AboveNormal });
-            }
+            for (var i = 0; i < processorCount; i ++) aboveNormalPriorityThreads.Add(new Thread(Counter) { Priority = ThreadPriority.AboveNormal });
 
             var normalPriorityThread = new Thread(Counter);
             normalPriorityThread.Start();
@@ -44,11 +41,8 @@ namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
                 
                 var then = DateTime.Now;
                 var number = then.GetHashCode();
-                while (DateTime.Now < then.AddSeconds(1))
-                {
-                    number ^= number.GetHashCode();
-                }
-                
+                while (DateTime.Now < then.AddSeconds(1)) number ^= number.GetHashCode();
+
                 WriteLine($"Thread ID: {id}, Priority: {priority, -15}{i, 10}{number}");
             }
 

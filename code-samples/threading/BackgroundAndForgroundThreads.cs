@@ -1,9 +1,11 @@
+using System;
+using System.Threading;
+
 namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 {
-    using System.Threading;
-    using static System.Console;
+    using static Console;
 
-    static class BackgroundAndForegroundThreads
+    internal static class BackgroundAndForegroundThreads
     {
         private static void Main()
         {

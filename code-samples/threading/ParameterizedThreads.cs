@@ -1,9 +1,11 @@
+using System;
+using System.Threading;
+
 namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 {
-    using System.Threading;
-    using static System.Console;
+    using static Console;
 
-    static class ParameterizedThreads
+    internal static class ParameterizedThreads
     {
         private static void Main()
         {

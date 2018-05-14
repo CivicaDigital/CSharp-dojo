@@ -1,8 +1,11 @@
+using System;
+using System.Threading;
+
 namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 {
-    using System.Threading;
-    using static System.Console;
-    static class ThreadJoining
+    using static Console;
+
+    internal static class ThreadJoining
     {
         private static void Main()
         {

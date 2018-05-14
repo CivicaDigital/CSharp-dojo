@@ -1,9 +1,11 @@
-﻿namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
-{
-    using static System.Console;
-    using System.Threading;
+﻿using System;
+using System.Threading;
 
-    static class CreatingSingleForgroundThread
+namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
+{
+    using static Console;
+
+    internal static class CreatingSingleForgroundThread
     {
         private static void Main()
         {

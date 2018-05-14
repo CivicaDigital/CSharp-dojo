@@ -1,9 +1,11 @@
+using System;
+using System.Threading;
+
 namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 {
-    using static System.Console;
-    using System.Threading;
-    
-    static class AbortingAThread
+    using static Console;
+
+    internal static class AbortingAThread
     {
         private static void Main()
         {
@@ -12,6 +14,7 @@ namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
             Thread.Sleep(50);
             thread.Abort("I'm aborting you.");
         }
+
         private static void Counter()
         {
             try
