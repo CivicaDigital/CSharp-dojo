@@ -2,53 +2,50 @@
 {
     using System;
     using System.Threading;
-    using static System.Threading.Thread;
-    using static System.Console;
 
-    internal static class ThreadCancellation
+    internal static class ThreadCancellationWithTimeout
     {
         private static void Main()
         {
-            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationTokenSource = new CancellationTokenSource(50);
             var cancellationToken = cancellationTokenSource.Token;
             ThreadPool.QueueUserWorkItem(x => Counter(cancellationToken));
             ThreadPool.QueueUserWorkItem(x => CounterWithThrow(cancellationToken));
-            Sleep(10);
-            cancellationTokenSource.Cancel();
-            Sleep(10);
+            Thread.Sleep(100);
+            Console.WriteLine("The threads should have canceled by now.");
         }
 
         private static void Counter(CancellationToken cancellationToken)
         {
-            WriteLine($"Counter running on {CurrentThread.ManagedThreadId}.");
+            Console.WriteLine($"Counter running on {Thread.CurrentThread.ManagedThreadId}.");
             while (!cancellationToken.IsCancellationRequested)
             {
-                WriteLine($"Thread {CurrentThread.ManagedThreadId}:  {DateTime.Now.Ticks}");
-                Sleep(1);
+                Console.WriteLine($"Thread {Thread.CurrentThread.ManagedThreadId}:  {DateTime.Now.Ticks}");
+                Thread.Sleep(1);
             }
 
-            WriteLine("Counter() was canceled");
+            Console.WriteLine("Counter() was canceled");
         }
 
         private static void CounterWithThrow(CancellationToken cancellationToken)
         {
-            WriteLine($"CounterWithThrow running on {CurrentThread.ManagedThreadId}.");
+            Console.WriteLine($"CounterWithThrow running on {Thread.CurrentThread.ManagedThreadId}.");
 
             try
             {
                 while (true)
                 {
-                    WriteLine($"Thread {CurrentThread.ManagedThreadId}:  {DateTime.Now.Ticks}");
+                    Console.WriteLine($"Thread {Thread.CurrentThread.ManagedThreadId}:  {DateTime.Now.Ticks}");
                     cancellationToken.ThrowIfCancellationRequested();
-                    Sleep(1);
+                    Thread.Sleep(1);
                 }
 
             }
             catch (OperationCanceledException e)
             {
-                WriteLine($"Thread {CurrentThread.ManagedThreadId}: Caught OperationCanceledException: {e.Message}");
+                Console.WriteLine($"Thread {Thread.CurrentThread.ManagedThreadId}: Caught OperationCanceledException: {e.Message}");
             }
-            
+
         }
     }
 }

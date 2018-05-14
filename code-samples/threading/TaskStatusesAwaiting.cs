@@ -1,11 +1,11 @@
 namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 {
+    using System;
     using System.Threading.Tasks;
     using static System.Console;
-    using System;
     using static System.Threading.Thread;
-    
-    static class TaskStatusesAwaiting
+
+    internal static class TaskStatusesAwaiting
     {
         private static void Main(string[] args)
         {
@@ -27,10 +27,7 @@ namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
         private static void Counter()
         {
             var hash = DateTime.Now.Ticks;
-            for (var i = 0L; i < 1000000; i++)
-            {
-                hash = (i ^ hash).ToString().GetHashCode()  ;
-            }
+            for (var i = 0L; i < 1000000; i++) hash = (i ^ hash).ToString().GetHashCode()  ;
 
             WriteLine($"Finished.  Hash = {hash}");
         }

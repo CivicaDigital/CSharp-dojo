@@ -660,3 +660,133 @@ This might seem like the silver bullet, however we lose a lot of benefits from t
 The `Task` and `Task<T>` types address the problem of waiting until completion.  If we change the `ThreadPool` example above to use tasks then we get exactly the same output, but we don't need the `while` loop and boolean array to wait for tasks to all finish.  We can just use the `Task.WaitAll` method.
 
 Internally the task is using the `ThreadPool`, which is why our output is identical.
+
+## Cancelling Threads
+
+Cancellation has two _modes_ that can be used for cancelling.
+
+1. Marking to the subject thread that it's creator wants it to cancel.
+1. The subject thread throwing a `OperationCancelledException` if cancellation has been requested.
+
+Cancelling threads is a cooperative pattern.  We tell the thread that we want to cancel it, it is up to the executing code to then decide what action to take.  The thread is under no obligation to cancel at all.  A _well written_ thread will cancel if it is safe to do so.  This isn't dissimilar to the disposal of objects, in that the object will perform any cleaning up actions it deems necessary before being collected.
+
+Both these methods are shown here:
+
+``` csharp
+using System;
+using System.Threading;
+using static System.Threading.Thread;
+using static System.Console;
+
+internal static class ThreadCancellation
+{
+    private static void Main()
+    {
+        var cancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancellationTokenSource.Token;
+        ThreadPool.QueueUserWorkItem(x => Counter(cancellationToken));
+        ThreadPool.QueueUserWorkItem(x => CounterWithThrow(cancellationToken));
+        Sleep(10);
+        cancellationTokenSource.Cancel();
+        Sleep(10);
+    }
+
+    private static void Counter(CancellationToken cancellationToken)
+    {
+        WriteLine($"Counter running on {CurrentThread.ManagedThreadId}.");
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            WriteLine($"Thread {CurrentThread.ManagedThreadId}:  {DateTime.Now.Ticks}");
+            Sleep(1);
+        }
+
+        WriteLine("Counter() was canceled");
+    }
+
+    private static void CounterWithThrow(CancellationToken cancellationToken)
+    {
+        WriteLine($"CounterWithThrow running on {CurrentThread.ManagedThreadId}.");
+
+        try
+        {
+            while (true)
+            {
+                WriteLine($"Thread {CurrentThread.ManagedThreadId}:  {DateTime.Now.Ticks}");
+                cancellationToken.ThrowIfCancellationRequested();
+                Sleep(1);
+            }
+
+        }
+        catch (OperationCanceledException e)
+        {
+            WriteLine($"Thread {CurrentThread.ManagedThreadId}: Caught OperationCanceledException: {e.Message}");
+        }
+    }
+}
+```
+
+Both `Counter` and `CancellationToken`  accept a `CancellationToken` token (created by the same `CancellationTokenSource`) and both keep processing until `Cancel()` is called on the token's source; however `Counter()` just exits gracefully by querying the `IsCancellationRequest` property whereas `CounterWithThrow()` catches the exception that's thrown.  If we didn't catch this exception then the whole application would fail.
+
+We can also catch the exception in the parent thread.  If an exception is thrown then `Cancel()`.
+
+## Registering a Callback
+
+We can also register callbacks to be invoked when a cancellation is called:
+
+``` csharp
+using System;
+    using System.Threading;
+    using static System.Console;
+    using static System.Threading.Thread;
+
+    internal class RegisterCancellationCallback
+    {
+        private static void Main()
+        {
+            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = cancellationTokenSource.Token;
+            ThreadPool.QueueUserWorkItem(x => Counter(cancellationToken));
+            ThreadPool.QueueUserWorkItem(x => CounterWithThrow(cancellationToken));
+            cancellationToken.Register(LogCanceled);
+            Sleep(10);
+            cancellationTokenSource.Cancel();
+
+            Sleep(10);
+        }
+
+        private static void LogCanceled()
+        {
+            WriteLine($"Thread {CurrentThread.ManagedThreadId}:  Registered callback invoked.");
+        }
+
+        private static void Counter(CancellationToken cancellationToken)
+        {
+            WriteLine($"Counter running on {CurrentThread.ManagedThreadId}.");
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                WriteLine($"Thread {CurrentThread.ManagedThreadId}:  {DateTime.Now.Ticks}");
+                Sleep(1);
+            }
+
+            WriteLine("Counter() was canceled");
+        }
+
+        private static void CounterWithThrow(CancellationToken cancellationToken)
+        {
+            try
+            {
+                WriteLine($"CounterWithThrow running on {CurrentThread.ManagedThreadId}.");
+                while (true)
+                {
+                    WriteLine($"Thread {CurrentThread.ManagedThreadId}:  {DateTime.Now.Ticks}");
+                    cancellationToken.ThrowIfCancellationRequested();
+                    Sleep(1);
+                }
+            }
+            catch (OperationCanceledException e)
+            {
+                WriteLine($"Thread {CurrentThread.ManagedThreadId}: Caught OperationCanceledException: {e.Message}");
+            }
+        }
+    }
+```
