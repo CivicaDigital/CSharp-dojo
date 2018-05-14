@@ -1,12 +1,10 @@
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 {
-    using static Console;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using static System.Console;
 
     internal static class TaskClasses
     {

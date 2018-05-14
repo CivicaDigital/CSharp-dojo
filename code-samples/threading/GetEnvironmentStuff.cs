@@ -1,8 +1,7 @@
-using System;
-
 namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 {
-    using static Console;
+    using System;
+    using static System.Console;
 
     internal static class GetEnvironmentStuff
     {

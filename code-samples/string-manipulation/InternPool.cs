@@ -1,8 +1,6 @@
-using System;
-
 namespace BanksySan.Workshops.AdvancedCSharp.StringManipulation
 {
-    using static Console;
+    using static System.Console;
 
     internal static class InternPool
     {

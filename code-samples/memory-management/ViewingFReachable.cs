@@ -1,8 +1,7 @@
-using System;
-
 namespace BanksySan.Workshops.AdvancedCSharp.MemoryManagement
 {
-    using static Console;
+    using System;
+    using static System.Console;
 
     internal class FinalizableType
     {

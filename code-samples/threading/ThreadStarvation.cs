@@ -1,10 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-
 namespace BanksySan.Workshops.AdvancedCSharp.ThreadingExamples
 {
-    using static Console;
+    using System;
+    using System.Collections.Generic;
+    using System.Threading;
+    using static System.Console;
 
     internal static class ThreadStarvation
     {
