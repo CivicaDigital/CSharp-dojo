@@ -718,7 +718,7 @@ internal static class ThreadCancellation
 
         }
         catch (OperationCanceledException e)
-        {
+            {
             WriteLine($"Thread {CurrentThread.ManagedThreadId}: Caught OperationCanceledException: {e.Message}");
         }
     }
