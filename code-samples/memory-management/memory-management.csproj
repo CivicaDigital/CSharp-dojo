@@ -5,4 +5,9 @@
     <RootNamespace>BanksySan.Workshops.AdvancedCSharp.MemoryManagement</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Remove="*.exe" />
+    <None Remove="*.dll" />
+  </ItemGroup>
+
 </Project>

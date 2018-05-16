@@ -7,5 +7,6 @@
 
   <ItemGroup>
     <None Remove="*.exe" />
+    <None Remove="*.dll" />
   </ItemGroup>
 </Project>
