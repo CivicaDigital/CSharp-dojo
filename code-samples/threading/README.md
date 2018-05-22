@@ -790,3 +790,279 @@ using System;
         }
     }
 ```
+
+## Locking Primitives
+
+Let's assume we have many threads performing tasks, periodically they want to adjust some value to reflect their progress.
+
+``` csharp
+using System;
+using System.Threading;
+
+internal static class AggregatingFromManyThreadsIncorrect
+{
+    private static float _BALANCE;
+
+    private static void Main()
+    {
+        var threadCount = 10;
+        var threads = new Thread[threadCount];
+
+        for (var i = 0; i < threadCount; i++)
+        {
+            var thread = new Thread(PerformTransactions);
+            thread.Start();
+            threads[i] = thread;
+        }
+
+        for (var i = 0; i < threadCount; i++)
+        {
+            threads[i].Join();
+        }
+
+        Console.WriteLine($"Balance = {_BALANCE}.");
+    }
+
+    private static void PerformTransactions(object state)
+    {
+        for (var i = 0; i < 10000; i++)
+        {
+            _BALANCE += 1;
+            Thread.Sleep(0);
+            _BALANCE -= 1;
+            Thread.Sleep(0);
+        }
+    }
+}
+```
+
+The above code adds and removed `1` from the balance.  This should mean that the final balance should be zero.  Run this a few times though and you'll see that the final value is regularly non-zero.  
+
+The reason for this is that the `+=` operator isn't atomic.  In fact the lines `+=` and `-=` are expanded into this:
+
+```csharp
+private static void PerformTransactions(object state)
+{
+    for (var i = 0; i < 10000; i++)
+    {
+        var b1 = _BALANCE;
+        var result1 = b1 + 1;
+        _BALANCE = result1;
+        Thread.Sleep(0);
+        var b2 = _BALANCE;
+        var result2 = b2 - 1;
+        _BALANCE = result2;
+        Thread.Sleep(0);
+    }
+}
+```
+
+With many threads running it's quite probable that several threads will be in the code between assigning the current value of `_BALANCE` to the temporary variable and the code setting `_BALANCE` to the newly calculated result.
+
+The simplest was the make this thread safe is with the `lock` keyword.  The `lock` is a keyword that tells the compiler to wrap the locked block with a `Monitor.Enter()` and `Monitor.Exit()`.
+
+Rewrite the code above with the `lock` keyword.
+
+``` csharp
+    using System;
+    using System.Threading;
+
+    internal static class LockKeyword
+    {
+        private static int _BALANCE;
+        private static readonly object LOCK = new object();
+
+        private static void Main()
+        {
+            var threadCount = 10;
+            var threads = new Thread[threadCount];
+
+            for (var i = 0; i < threadCount; i++)
+            {
+                var thread = new Thread(PerformTransactions);
+                thread.Start();
+                threads[i] = thread;
+            }
+
+            for (var i = 0; i < threadCount; i++) threads[i].Join();
+
+            Console.WriteLine($"Balance = {_BALANCE}.");
+        }
+
+        private static void PerformTransactions(object state)
+        {
+            for (var i = 0; i < 10000; i++)
+            {
+                lock(LOCK)
+                {
+                    _BALANCE += 1;
+                }
+
+                Thread.Sleep(0);
+                lock(LOCK)
+                {
+                    _BALANCE -= 1;
+                }
+
+                Thread.Sleep(0);
+            }
+        }
+    }
+```
+
+Running this again will prove that the result is now what we expect.  The `lock` block keyword is actually a shortcut for calling the `Monitor.Enter()` and `Monitor.Exit()` methods in a `try-finally` pattern (similar to how the `using` statement works).
+
+We can see this in the IL:
+
+``` il
+.method private hidebysig static void  PerformTransactions(object state) cil managed
+{
+  // Code size       109 (0x6d)
+  .maxstack  2
+  .locals init (int32 V_0,
+           object V_1,
+           bool V_2)
+  IL_0000:  ldc.i4.0
+  IL_0001:  stloc.0
+  IL_0002:  br.s       IL_0064
+  IL_0004:  ldsfld     object BanksySan.Workshops.AdvancedCSharp.ThreadingExamples.LockKeyword::LOCK
+  IL_0009:  stloc.1
+  IL_000a:  ldc.i4.0
+  IL_000b:  stloc.2
+  .try
+  {
+    IL_000c:  ldloc.1
+    IL_000d:  ldloca.s   V_2
+    IL_000f:  call       void [mscorlib]System.Threading.Monitor::Enter(object,
+                                                                        bool&)
+    IL_0014:  ldsfld     int32 BanksySan.Workshops.AdvancedCSharp.ThreadingExamples.LockKeyword::_BALANCE
+    IL_0019:  ldc.i4.1
+    IL_001a:  add
+    IL_001b:  stsfld     int32 BanksySan.Workshops.AdvancedCSharp.ThreadingExamples.LockKeyword::_BALANCE
+    IL_0020:  leave.s    IL_002c
+  }  // end .try
+  finally
+  {
+    IL_0022:  ldloc.2
+    IL_0023:  brfalse.s  IL_002b
+    IL_0025:  ldloc.1
+    IL_0026:  call       void [mscorlib]System.Threading.Monitor::Exit(object)
+    IL_002b:  endfinally
+  }  // end handler
+  IL_002c:  ldc.i4.0
+  IL_002d:  call       void [mscorlib]System.Threading.Thread::Sleep(int32)
+  IL_0032:  ldsfld     object BanksySan.Workshops.AdvancedCSharp.ThreadingExamples.LockKeyword::LOCK
+  IL_0037:  stloc.1
+  IL_0038:  ldc.i4.0
+  IL_0039:  stloc.2
+  .try
+  {
+    IL_003a:  ldloc.1
+    IL_003b:  ldloca.s   V_2
+    IL_003d:  call       void [mscorlib]System.Threading.Monitor::Enter(object,
+                                                                        bool&)
+    IL_0042:  ldsfld     int32 BanksySan.Workshops.AdvancedCSharp.ThreadingExamples.LockKeyword::_BALANCE
+    IL_0047:  ldc.i4.1
+    IL_0048:  sub
+    IL_0049:  stsfld     int32 BanksySan.Workshops.AdvancedCSharp.ThreadingExamples.LockKeyword::_BALANCE
+    IL_004e:  leave.s    IL_005a
+  }  // end .try
+  finally
+  {
+    IL_0050:  ldloc.2
+    IL_0051:  brfalse.s  IL_0059
+    IL_0053:  ldloc.1
+    IL_0054:  call       void [mscorlib]System.Threading.Monitor::Exit(object)
+    IL_0059:  endfinally
+  }  // end handler
+  IL_005a:  ldc.i4.0
+  IL_005b:  call       void [mscorlib]System.Threading.Thread::Sleep(int32)
+  IL_0060:  ldloc.0
+  IL_0061:  ldc.i4.1
+  IL_0062:  add
+  IL_0063:  stloc.0
+  IL_0064:  ldloc.0
+  IL_0065:  ldc.i4     0x2710
+  IL_006a:  blt.s      IL_0004
+  IL_006c:  ret
+} // end of method LockKeyword::PerformTransactions
+```
+
+We can see the `try` and `finally` and the calls to `Monitor.Enter()` and `Monitor.Exit()` within them.
+
+
+## Performance
+
+Locking a code block, by necessity, causes a bottleneck because only one thread can get past that point at a time.  The performance hit, even for a very simple example like this a significant amount.  To combat this you need to limit the amount of code in a synchronised context to a minimum, or none at all.
+
+In the example above the nature of the calculation means that we don't actually need to be updating the shared value constantly.  Each thread can calculate it's total and just lock the shared value once at the end to update it.
+
+``` csharp
+private static void PerformTransactions(object state)
+{
+    var balance = 0;
+
+    for (var i = 0; i < 10000; i++)
+    {
+        balance += 1;
+        Thread.Sleep(0);
+        balance-= 1;
+        Thread.Sleep(0);
+    }
+
+    lock (LOCK)
+    {
+        _BALANCE += balance;
+    }
+}
+```
+
+Now the lock only occurs once per thread; a big improvement which is actually faster than the unsynchronised (and erroneous) example because theres no need for enforced atomic red/writes from the shared value.
+
+We can achieve this by using tasks.
+
+``` csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+internal static class NoLockAtAll
+{
+    private static void Main()
+    {
+        var threadCount = 10;
+        var tasks = new Task<int>[threadCount];
+
+        for (var i = 0; i < threadCount; i++) tasks[i] = new Task<int>(PerformTransactions);
+
+        for (var i = 0; i < tasks.Length; i++) tasks[i].Start();
+
+        var results = Task.WhenAll(tasks);
+
+        var balance = 0;
+
+        foreach (var result in results.Result) balance += result;
+
+        Console.WriteLine($"Balance = {balance}.");
+    }
+
+    private static int PerformTransactions()
+    {
+        var balance = 0;
+
+        for (var i = 0; i < 10000; i++)
+        {
+            balance += 1;
+            Thread.Sleep(0);
+            balance -= 1;
+            Thread.Sleep(0);
+        }
+
+        return balance;
+    }
+}
+```
+
+By re-writing the `PerformTransactions()` method so it returns a value and doesn't have any side-affects (i.e. changing any state external to it) we know have a method that is guaranteed thread safe.
+
+> This method also always returns the same value when given the same arguments (in this case no arguments).  When a method has all three of these properties we call it a _pure_ method.  Pure methods are one of the fundamental building blocks of functional programming.
