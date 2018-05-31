@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>BanksySan.Workshops.AdvancedCSharp.Oop</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="*.exe" />
+    <None Remove="*.dll" />
+  </ItemGroup>
+</Project>

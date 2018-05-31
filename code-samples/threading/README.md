@@ -1066,3 +1066,190 @@ internal static class NoLockAtAll
 By re-writing the `PerformTransactions()` method so it returns a value and doesn't have any side-affects (i.e. changing any state external to it) we know have a method that is guaranteed thread safe.
 
 > This method also always returns the same value when given the same arguments (in this case no arguments).  When a method has all three of these properties we call it a _pure_ method.  Pure methods are one of the fundamental building blocks of functional programming.
+
+## Torn Reads
+
+The error we got in the initial multi-threaded balance calculation was due to the read, calculate and write not being atomic, however the read and write _independently_ are atomic.  There isn't any way that a read can happen _whilst_ a write is happening.  As per the ECMA specification:
+
+> I.12.6.5 Locks and threads
+> > Built-in atomic reads and writes. All reads and writes of certain properly aligned data types are guaranteed to occur atomically
+
+The CLI guarantees that reads and writes to the following data types are atomic:
+
+* `bool`
+* `char`
+* `byte`
+* `sbyte`
+* `short`
+* `ushort`
+* `int`
+* `uint`
+* `float`
+* Object pointer
+
+This doesn't include `double`, `decimal`, `long` or `ulong`.  This is because these types are all larger than 32-bits.
+
+The following code has one thread writing to a `ulong` and another reading from it.
+
+``` csharp
+using System;
+using System.Threading;
+
+internal static class TornReads
+{
+    private const ulong NUMBER_1 = 0xFFFFFFFFFFFFFFFF;
+    private const ulong NUMBER_2 = 0x0000000000000000;
+    private static ulong _NUMBER = NUMBER_1;
+    private static bool @continue = true;
+
+    private static void Main()
+    {
+        var writerThread = new Thread(Writer);
+        var readerThread = new Thread(Reader);
+
+        writerThread.Start();
+        readerThread.Start();
+        readerThread.Join();
+        writerThread.Abort();
+        @continue = true;
+    }
+
+    private static void Reader()
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            var number = _NUMBER;
+            if (number != NUMBER_1 && number != NUMBER_2)
+                Console.WriteLine($"{i,3}: Read: {number:X16} TornRead!");
+            else
+                Console.WriteLine($"{i,3}: Read: {number:X16}");
+        }
+    }
+
+    private static void Writer()
+    {
+        while (@continue)
+        {
+            _NUMBER = NUMBER_2;
+            _NUMBER = NUMBER_1;
+        }
+    }
+}
+```
+
+A _good_ read would be either `0x0000000000000000` or `0xFFFFFFFFFFFFFFFF` (i.e. setting all bits to `0` or setting all bits to `1`).  A _bad_ read would be when some of the bits have been changed, but not all.
+
+Compile this code, **targeting x32**  and you will see that some values are `0x00000000FFFFFFFF` and some are `0xFFFFFFFF00000000`.  This is called a _torn read_.  We only see these two torn values because 32 bits are atomic, this it takes two atomic 32 bit writes to the full 62 bit value.
+
+Try targeting x64 now, you'll see that there aren't any torn reads at all.  This is because a x64 CPU can read and write 64 bits atomically.
+
+> NB The atomic reading of the values larger than 32 bits is because of the CPU architecture.  It's not guaranteed by the CLI.
+
+## Interlocked operations
+
+Interlocking is the term used for performing read _and_ write operations atomically.  C# has a static class `Interlocked` which has several methods to achieve this behaviour.  For example, the `Increment` and `Decrement` methods perform the `+=` and `-=` operations we used in the `lock` examples.
+
+Torn reads could be fixed with the `lock` keyword again, but `Interlocked` provides us with a better option using the `Read` method.
+
+## Volatile
+
+When compiling C# you have the option of optimising the code.  Effectively, optimising rewrites the code you've written so that it runs faster.  Production code should always be optimised.  
+
+> Because optimised code is different version it should have a different version number.
+
+Look at this code:
+
+``` csharp
+using System;
+using System.Threading;
+
+internal static class OptimisationBugs
+{
+    private const int TERMINATING_COUNT = 10;
+    private static int _COUNT;
+
+    private static void Main()
+    {
+        var checker = new Thread(Checker);
+        var stopper = new Thread(Counter);
+        checker.Start();
+        Thread.Sleep(10);
+        stopper.Start();
+        var timeout = TimeSpan.FromSeconds(1);
+        _COUNT = 1;
+        Console.WriteLine($"Waiting for {timeout} worker to stop.");
+        checker.Join(timeout);
+        if (checker.IsAlive)
+        {
+            Console.Error.WriteLine($"Thread failed to stop.  Aborting instead. ");
+            checker.Abort();
+        }
+
+        Console.WriteLine("Done");
+    }
+
+    private static void Counter()
+    {
+        for (; _COUNT < 21; _COUNT++)
+        {
+            Console.WriteLine($"Count: {_COUNT}");
+            if (_COUNT == TERMINATING_COUNT)
+                Console.WriteLine($"Terminator {TERMINATING_COUNT} reached.");
+        }
+    }
+
+    private static void Checker()
+    {
+        var x = 0;
+        while (_COUNT < TERMINATING_COUNT) x++;
+        Console.WriteLine($"{nameof(Checker)} stopped at {x}.");
+    }
+}
+```
+
+If we compile this code without any optimisations then things happen as we intend; that being that the `Checker` counts as high as it can before the `_COUNT` variable exceeds `9`.
+
+    Waiting for 00:00:01 worker to stop.
+    Count: 1
+    Count: 2
+    Count: 3
+    Count: 4
+    Count: 5
+    Count: 6
+    Count: 7
+    Count: 8
+    Count: 9
+    Count: 10
+    Terminator 10 reached.
+    Count: 11
+    Count: 12
+    Count: 13
+    Count: 14
+    Count: 15
+    Count: 16
+    Count: 17
+    Count: 18
+    Count: 19
+    Count: 20
+    Checker stopped at 9101073.
+    Done
+
+Now compile this again, this time optimised.  Now the output is different, the timeout on the `Join` is breached.  If fact, if we didn't have the timeout there the application would never exit.
+
+To fix this problem we need to signal to the compiler that it need to fetch the value in `_COUNT` each time.  We need to mark the read as volatile.  We have two options here, we could put the `volatile` keyword in from of the declaration or we can use the static methods off the `Volatile` class.  The latter of these options is preferred for two reasons:
+
+1. Using the `volatile` keyword causes every read and write to be volatile.
+1. Volatility is an operation of individual reads and writes, not of declaration.
+
+In this case it's the read that should be volatile, so we can correct the `Checker` method.
+
+``` csharp
+private static void Checker()
+{
+    var x = 0;
+    while (Volatile.Read(ref _COUNT) < TERMINATING_COUNT) x++;
+    Console.WriteLine($"{nameof(Checker)} stopped at {x}.");
+}
+```
+
+Notice that the target of the read is passed by reference.

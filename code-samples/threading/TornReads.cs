@@ -8,7 +8,7 @@
         private const ulong NUMBER_1 = ulong.MaxValue;
         private const ulong NUMBER_2 = 0;
         private static ulong _NUMBER = NUMBER_1;
-        private static readonly CancellationTokenSource CANCELLATION_TOKEN_SOURCE = new CancellationTokenSource();
+        private static bool @continue = true;
 
         private static void Main()
         {
@@ -19,7 +19,7 @@
             readerThread.Start();
             readerThread.Join();
             writerThread.Abort();
-            CANCELLATION_TOKEN_SOURCE.Cancel();
+            @continue = true;
         }
 
         private static void Reader()
@@ -36,7 +36,7 @@
 
         private static void Writer()
         {
-            while (!CANCELLATION_TOKEN_SOURCE.IsCancellationRequested)
+            while (@continue)
             {
                 _NUMBER = NUMBER_2;
                 _NUMBER = NUMBER_1;
